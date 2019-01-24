@@ -1,0 +1,14 @@
+#!/bin/sh
+
+DIR="$(dirname $0)"
+if [ "$DIR" = "." ]
+then
+  DIR=$(pwd)
+fi
+
+GRID_HOME_JSON_FILE=$DIR/grid_home.json
+
+if [ -f $GRID_HOME_JSON_FILE ]; then
+  cat $GRID_HOME_JSON_FILE
+fi
+

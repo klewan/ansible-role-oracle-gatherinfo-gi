@@ -1,0 +1,6 @@
+---
+
+# Dictionaries describing the RAC node names
+oracle_gatherinfo_gi_f_rac_nodes: []
+oracle_gatherinfo_gi_f_rac_remote_nodes: []
+

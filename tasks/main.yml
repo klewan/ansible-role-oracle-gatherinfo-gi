@@ -1,0 +1,94 @@
+---
+
+- name: get GRID_HOME path from oracle inventory
+  shell: |
+    if [ -r /etc/oracle/olr.loc ]; then
+      grep ^crs_home /etc/oracle/olr.loc | cut -d= -f2
+    else
+      cat $(cat /etc/oraInst.loc | grep "^inventory_loc" | cut -d= -f2)/ContentsXML/inventory.xml | grep -v "#" | egrep -v 'REMOVED|sbin|plugins' | grep CRS=\"true\" | awk '{print $3}' | cut -d= -f2 | sed 's/"//g'
+    fi
+  register: _oracle_gatherinfo_gi_grid_home
+  check_mode: no
+  tags:
+    - oracle_gatherinfo_gi_find_grid_home
+
+- name: get GRID_HOME version
+  shell: |
+    {% if oracle_gatherinfo_gi_get_grid_home_version %}
+    strings {{ _oracle_gatherinfo_gi_grid_home.stdout }}/bin/oracle | grep 'NLSRTL Version' | awk '{print $3}'
+    {% else %}
+    echo
+    {% endif %}
+  register: _oracle_gatherinfo_gi_grid_home_version
+  check_mode: no
+  when: _oracle_gatherinfo_gi_grid_home.stdout != ""
+  tags:
+    - oracle_gatherinfo_gi_get_grid_home_version
+
+- name: get RAC nodes names
+  shell: |
+    {% if oracle_gatherinfo_gi_get_rac_nodes %}
+    {{ _oracle_gatherinfo_gi_grid_home.stdout }}/bin/olsnodes | sed "s/$/.{{ ansible_domain|default('localdomain',true) }}/g" | sed 's/\.$//g'
+    {% else %}
+    echo
+    {% endif %}
+  register: _oracle_gatherinfo_gi_rac_nodes
+  check_mode: no
+  when: _oracle_gatherinfo_gi_grid_home.stdout != ""
+  tags:
+    - oracle_gatherinfo_gi_get_rac_nodes
+
+- name: get local RAC node name
+  shell: |
+    {% if oracle_gatherinfo_gi_get_local_rac_node %}
+    {{ _oracle_gatherinfo_gi_grid_home.stdout }}/bin/olsnodes -l | sed "s/$/.{{ ansible_domain|default('localdomain',true) }}/g" | sed 's/\.$//g'
+    {% else %}
+    echo
+    {% endif %}
+  register: _oracle_gatherinfo_gi_local_rac_node
+  check_mode: no
+  when: _oracle_gatherinfo_gi_grid_home.stdout != ""
+  tags:
+    - oracle_gatherinfo_gi_get_local_rac_node
+
+- name: set variables (1)
+  set_fact:
+    oracle_gatherinfo_gi_f_rac_nodes: "{{ oracle_gatherinfo_gi_f_rac_nodes + [ item ] }}"
+  with_items:
+    - "{{ _oracle_gatherinfo_gi_rac_nodes.stdout_lines }}"
+  loop_control:
+    label: "[RAC node name: {{ item }}]"
+  when: _oracle_gatherinfo_gi_grid_home.stdout != "" and _oracle_gatherinfo_gi_rac_nodes.stdout != ""
+  tags:
+    - oracle_gatherinfo_gi_get_rac_nodes
+    - oracle_gatherinfo_gi_set_grid_home
+
+- name: set variables (2)
+  set_fact:
+    oracle_gatherinfo_gi_gi_info: "{{ oracle_gatherinfo_gi_gi_info|default({}) | combine( { 'oracle_home': _oracle_gatherinfo_gi_grid_home.stdout } ) | combine( { 'software_version': _oracle_gatherinfo_gi_grid_home_version.stdout } ) | combine( { 'rac_nodes': oracle_gatherinfo_gi_f_rac_nodes } ) | combine( { 'rac_remote_nodes': oracle_gatherinfo_gi_f_rac_nodes|difference([ _oracle_gatherinfo_gi_local_rac_node.stdout ]) } ) }}"
+  when: _oracle_gatherinfo_gi_grid_home.stdout != ""
+  tags:
+    - oracle_gatherinfo_gi_set_grid_home
+
+- include_tasks: patches.yml
+  when: oracle_gatherinfo_gi_get_grid_home_patches
+  tags:
+    - oracle_gatherinfo_gi_get_grid_home_patches
+
+- include_tasks: extra_facts.yml
+  when: oracle_gatherinfo_gi_get_extra_facts and oracle_gatherinfo_gi_gi_info is defined and oracle_gatherinfo_gi_gi_info.oracle_home is defined
+  tags:
+    - oracle_gatherinfo_gi_get_extra_facts
+
+#- name: print collected data
+#  debug: var=oracle_gatherinfo_gi_gi_info
+#  when: oracle_gatherinfo_gi_print_collected_data and _oracle_gatherinfo_gi_grid_home.stdout != ""
+#  tags:
+#    - oracle_gatherinfo_gi_print_collected_data
+
+- name: print collected data
+  debug: var=oracle_gi_info
+  when: oracle_gatherinfo_gi_print_collected_data
+  tags:
+    - oracle_gatherinfo_gi_print_collected_data
+

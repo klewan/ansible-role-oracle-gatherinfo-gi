@@ -1,0 +1,48 @@
+#!/bin/sh
+
+# set ORACLE_HOME to ASM instance name
+#
+export ORACLE_SID=$(ps -eaf | grep asm_smon | grep -v grep | sed 's/^.*asm\_smon\_\(\S*\)$/\1/g')
+
+# set ORACLE_HOME to GRID_HOME
+#
+ORACLE_HOME=""
+
+DIR="$(dirname $0)"
+if [ "$DIR" = "." ]
+then
+  DIR=$(pwd)
+fi
+
+cat <<EOT > $DIR/parse.awk
+NR==1 {
+    for (i=1; i<=NF; i++) {
+        ix[\$i] = i
+    }
+}
+NR>1 {
+    print \$ix[c1], \$ix[c2], \$ix[c3]
+}
+EOT
+
+GRID_HOME_JSON_FILE=$DIR/grid_home.json
+if [ -f $GRID_HOME_JSON_FILE ]; then
+  ORACLE_HOME=$(cat $GRID_HOME_JSON_FILE | sed 's/.*oracle_home":\s*"\([^"]*\).*$/\1/')
+fi
+
+export ORACLE_HOME
+
+# fetch ASM diskgroups data in JSON format
+#
+# temp version: $ORACLE_HOME/bin/asmcmd lsdg | grep -i MOUNTED | sed '/^$/d' | awk '{ print $7,$8,$13 }' | sed 's/\/$//g' | awk -F ' ' 'BEGIN { print "["; } { printf "%s{\"%s\": \"%s\", \"%s\": \"%s\", \"%s\": \"%s\"}", delim, "disk_group_name", $3, "total_mb", $1, "free_mb", $2; delim="\n," } END { print "\n]"; }'
+
+echo "["
+
+if [ ! -z "$ORACLE_SID" ] && [ ! -z "$ORACLE_HOME" ]; then
+
+  $ORACLE_HOME/bin/asmcmd lsdg | awk -f $DIR/parse.awk c1=Total_MB c2=Free_MB c3=Name | sed '/^$/d' | sed 's/\/$//g' | awk -F ' ' '{ printf "%s{\"%s\": \"%s\", \"%s\": \"%s\", \"%s\": \"%s\"}", delim, "disk_group_name", $3, "total_mb", $1, "free_mb", $2; delim="\n," }'
+
+fi
+
+echo "]"
+

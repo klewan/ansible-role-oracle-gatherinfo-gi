@@ -1,0 +1,47 @@
+---
+
+- name: extra facts | create facts.d directory
+  file:
+    dest: '{{ oracle_gatherinfo_gi_facts_dir }}'
+    state: directory
+    owner: '{{ oracle_user }}'
+  when: oracle_gatherinfo_gi_get_extra_facts
+  tags:
+    - oracle_gatherinfo_gi_get_extra_facts
+    - oracle_gatherinfo_gi_get_extra_facts_directories
+
+- name: extra facts | copy facts scripts
+  template:
+    src: '{{ item }}.j2'
+    dest: '{{ oracle_gatherinfo_gi_facts_dir }}/{{ item }}'
+    mode: 0755
+  with_items:
+    - '{{ oracle_gatherinfo_gi_fact_script_templates }}'
+  loop_control:
+    label: "[script: {{ item }}]"
+  when: oracle_gatherinfo_gi_get_extra_facts
+  tags:
+    - oracle_gatherinfo_gi_get_extra_facts
+    - oracle_gatherinfo_gi_get_extra_facts_scripts
+
+- name: extra facts | remove json files from facts.d directory
+  file: dest={{ oracle_gatherinfo_gi_facts_dir}}/{{ item }} state=absent
+  with_items:
+    - grid_home.json
+  loop_control:
+    label: "[json file: {{ item }}]"
+  when: oracle_gatherinfo_gi_get_extra_facts
+  tags:
+    - oracle_gatherinfo_gi_get_extra_facts
+    - oracle_gatherinfo_gi_get_extra_facts_remove_json
+
+- name: extra facts | create json files in facts.d directory
+  lineinfile:
+    dest: "{{ oracle_gatherinfo_gi_facts_dir }}/grid_home.json"
+    create: yes
+    line: "{{ oracle_gatherinfo_gi_gi_info | to_json }}"
+  when: oracle_gatherinfo_gi_get_extra_facts
+  tags:
+    - oracle_gatherinfo_gi_get_extra_facts
+    - oracle_gatherinfo_gi_get_extra_facts_create_json
+

@@ -1,0 +1,45 @@
+---
+
+- name: patches | get GRID_HOME patches
+  shell: |
+    {% if oracle_gatherinfo_gi_get_grid_home_patches %}
+    {{ _oracle_gatherinfo_gi_grid_home.stdout }}/OPatch/opatch lspatches | grep -v OPatch | sed '/^$/d'
+    {% else %}
+    echo
+    {% endif %}
+  register: _oracle_gatherinfo_gi_grid_home_patches
+  check_mode: no
+  when: _oracle_gatherinfo_gi_grid_home.stdout != "" and oracle_gatherinfo_gi_get_grid_home_patches
+  tags:
+    - oracle_gatherinfo_gi_get_grid_home_patches
+
+- name: patches | set variables (1)
+  set_fact:
+    oracle_gatherinfo_gi_f_patches: "{{ oracle_gatherinfo_gi_f_patches|default({}) | combine( { 'patch_number': item | regex_replace('^(\\d*).*$', '\\1' ) } ) | combine( { 'patch_description': item | regex_replace('^[^;]*;(.*)$', '\\1' ) } ) }}"
+  with_items:
+    - "{{ _oracle_gatherinfo_gi_grid_home_patches.stdout_lines }}"
+  loop_control:
+    label: "[patch_number: {{ item | regex_replace('^(\\d*).*$', '\\1' ) }}]"
+  register: _oracle_gatherinfo_gi_f_patches_dict
+  when: oracle_gatherinfo_gi_get_grid_home_patches and _oracle_gatherinfo_gi_grid_home.stdout != "" and _oracle_gatherinfo_gi_grid_home_patches is defined
+  tags:
+    - oracle_gatherinfo_gi_get_grid_home_patches
+
+- name: patches | set variables (2)
+  set_fact:
+    oracle_gatherinfo_gi_f_oracle_home_patches: "{{ oracle_gatherinfo_gi_f_oracle_home_patches|default([]) + [ item.ansible_facts.oracle_gatherinfo_gi_f_patches ] }}"
+  with_items:
+    - "{{ _oracle_gatherinfo_gi_f_patches_dict.results }}"
+  loop_control:
+    label: "[patch_number: {{ item.ansible_facts.oracle_gatherinfo_gi_f_patches.patch_number }}]"
+  when: _oracle_gatherinfo_gi_grid_home.stdout != "" and _oracle_gatherinfo_gi_grid_home_patches is defined and _oracle_gatherinfo_gi_f_patches_dict is defined and oracle_gatherinfo_gi_get_grid_home_patches
+  tags:
+    - oracle_gatherinfo_gi_get_grid_home_patches
+
+- name: patches | set variables (3)
+  set_fact:
+    oracle_gatherinfo_gi_gi_info: "{{ oracle_gatherinfo_gi_gi_info|default({}) | combine( { 'oracle_home_patches': oracle_gatherinfo_gi_f_oracle_home_patches } ) }}"
+  when: _oracle_gatherinfo_gi_grid_home.stdout != "" and oracle_gatherinfo_gi_get_grid_home_patches and oracle_gatherinfo_gi_f_oracle_home_patches is defined
+  tags:
+    - oracle_gatherinfo_gi_get_grid_home_patches
+
